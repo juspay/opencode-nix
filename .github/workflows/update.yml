@@ -1,0 +1,57 @@
+name: Update OpenCode
+
+on:
+  schedule:
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: update-opencode
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: cachix/install-nix-action@v31
+      - name: Update release hashes
+        id: update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/update.sh
+      - name: Create pull request
+        if: steps.update.outputs.before != steps.update.outputs.after
+        id: pr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: update
+          base: main
+          delete-branch: true
+          add-paths: sources.json
+          commit-message: 'chore: opencode ${{ steps.update.outputs.before }} → ${{ steps.update.outputs.after }}'
+          title: 'chore: opencode ${{ steps.update.outputs.before }} → ${{ steps.update.outputs.after }}'
+          body: |
+            Updates OpenCode from ${{ steps.update.outputs.before }} to ${{ steps.update.outputs.after }} with verified release asset hashes for all four platforms.
+
+            [Release notes](https://github.com/anomalyco/opencode/releases/tag/v${{ steps.update.outputs.after }})
+      - name: Run CI for the update branch
+        if: steps.pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # GITHUB_TOKEN-created PRs do not trigger pull_request workflows.
+        run: gh workflow run ci.yml --ref update
+      - name: Enable auto-merge
+        if: steps.pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+          PR_HEAD: ${{ steps.pr.outputs.pull-request-head-sha }}
+        run: gh pr merge "$PR_NUMBER" --auto --squash --match-head-commit "$PR_HEAD"
