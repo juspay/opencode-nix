@@ -19,8 +19,8 @@ if ! jq -en --arg before "$before" --arg after "$after" \
   echo "Keeping OpenCode $before (latest release: $after)."
   after=$before
 else
-  systems=(x86_64-linux aarch64-linux aarch64-darwin x86_64-darwin)
-  assets=(opencode-linux-x64-musl.tar.gz opencode-linux-arm64-musl.tar.gz opencode-darwin-arm64.zip opencode-darwin-x64.zip)
+  systems=(x86_64-linux aarch64-linux aarch64-darwin)
+  assets=(opencode-linux-x64.tar.gz opencode-linux-arm64.tar.gz opencode-darwin-arm64.zip)
   hashes='{}'
   for i in "${!systems[@]}"; do
     echo "Prefetching ${assets[$i]} for OpenCode $after..."
@@ -31,7 +31,7 @@ else
       '. + {($system): $hash}' <<< "$hashes")
   done
 
-  # Publish the new version only after all four downloads have succeeded.
+  # Publish the new version only after all three downloads have succeeded.
   temporary=$(mktemp ./sources.json.XXXXXX)
   trap 'rm -f "$temporary"' EXIT
   jq -n --arg version "$after" --argjson hashes "$hashes" \

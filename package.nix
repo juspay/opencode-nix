@@ -5,17 +5,19 @@
 , unzip
 , ripgrep
 , sysctl
-, pkgsMusl
 , writableTmpDirAsHomeHook
 }:
 
 let
   sources = builtins.fromJSON (builtins.readFile ./sources.json);
   assets = {
-    x86_64-linux = "opencode-linux-x64-musl.tar.gz";
-    aarch64-linux = "opencode-linux-arm64-musl.tar.gz";
+    x86_64-linux = "opencode-linux-x64.tar.gz";
+    aarch64-linux = "opencode-linux-arm64.tar.gz";
     aarch64-darwin = "opencode-darwin-arm64.zip";
-    x86_64-darwin = "opencode-darwin-x64.zip";
+  };
+  loaders = {
+    x86_64-linux = "ld-linux-x86-64.so.2";
+    aarch64-linux = "ld-linux-aarch64.so.1";
   };
   system = stdenv.hostPlatform.system;
   asset = assets.${system} or (throw "Unsupported OpenCode platform: ${system}");
@@ -42,11 +44,13 @@ stdenv.mkDerivation {
     runHook preInstall
     install -Dm755 opencode "$out/libexec/opencode"
     mkdir -p "$out/bin"
+    # Keep upgrades managed by Nix rather than OpenCode's self-updater.
+    # ripgrep on PATH prevents a runtime download; macOS also needs sysctl.
     ${if stdenv.hostPlatform.isLinux then ''
-      # Upstream's musl assets are dynamically linked. Invoke the loader directly
-      # to preserve the Bun payload and avoid a non-NixOS /lib interpreter path.
-      makeBinaryWrapper ${pkgsMusl.musl}/lib/ld-musl-${stdenv.hostPlatform.parsed.cpu.name}.so.1 "$out/bin/opencode" \
-        --add-flags "--library-path ${lib.makeLibraryPath [ pkgsMusl.stdenv.cc.cc.lib pkgsMusl.stdenv.cc.cc.libgcc ]}" \
+      # Upstream's Linux assets are dynamically linked. Invoke glibc's loader
+      # directly because patchelf breaks the embedded Bun payload.
+      makeBinaryWrapper ${stdenv.cc.libc}/lib/${loaders.${system}} "$out/bin/opencode" \
+        --add-flags "--library-path ${lib.makeLibraryPath [ stdenv.cc.cc.lib ]}" \
         --add-flags "$out/libexec/opencode" \
     '' else ''
       makeBinaryWrapper "$out/libexec/opencode" "$out/bin/opencode" \
@@ -63,6 +67,8 @@ stdenv.mkDerivation {
     export XDG_CACHE_HOME=$(mktemp -d)
     export XDG_DATA_HOME=$(mktemp -d)
     export XDG_CONFIG_HOME=$(mktemp -d)
+    # Defined in packages/core/src/flag/flag.ts in upstream v1.18.33.
+    # Keep the install check from fetching the model catalog.
     export OPENCODE_DISABLE_MODELS_FETCH=true
     # Bun extracts native modules under TMPDIR/opencode; the unpacked executable
     # already occupies that name in Nix's default build directory.
