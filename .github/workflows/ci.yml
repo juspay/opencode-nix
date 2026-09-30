@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # The updater explicitly dispatches CI for PRs created with GITHUB_TOKEN.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - name: Build
+        run: nix build .#default -L
+      - name: Check version
+        shell: bash
+        run: |
+          expected=$(jq -r .version sources.json)
+          actual=$(./result/bin/opencode --version)
+          echo "OpenCode version: $actual"
+          test "$actual" = "$expected"
