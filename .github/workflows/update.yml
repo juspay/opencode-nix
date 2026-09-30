@@ -43,7 +43,7 @@ jobs:
           commit-message: "${{ steps.update.outputs.before != steps.update.outputs.after && format('chore: opencode {0} → {1}', steps.update.outputs.before, steps.update.outputs.after) || 'chore: update nixpkgs dependencies' }}"
           title: "${{ steps.update.outputs.before != steps.update.outputs.after && format('chore: opencode {0} → {1}', steps.update.outputs.before, steps.update.outputs.after) || 'chore: update nixpkgs dependencies' }}"
           body: |
-            Refreshes OpenCode (${{ steps.update.outputs.before }} → ${{ steps.update.outputs.after }}) and nixpkgs dependencies for all three platforms.
+            ${{ steps.update.outputs.before != steps.update.outputs.after && format('Updates OpenCode from {0} to {1} and refreshes nixpkgs dependencies.', steps.update.outputs.before, steps.update.outputs.after) || 'Refreshes nixpkgs dependencies; the OpenCode release pin is unchanged.' }}
 
             [Release notes](https://github.com/anomalyco/opencode/releases/tag/v${{ steps.update.outputs.after }})
       - name: Run CI for the update branch

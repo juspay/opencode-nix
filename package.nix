@@ -10,15 +10,7 @@
 
 let
   sources = builtins.fromJSON (builtins.readFile ./sources.json);
-  assets = {
-    x86_64-linux = "opencode-linux-x64.tar.gz";
-    aarch64-linux = "opencode-linux-arm64.tar.gz";
-    aarch64-darwin = "opencode-darwin-arm64.zip";
-  };
-  loaders = {
-    x86_64-linux = "ld-linux-x86-64.so.2";
-    aarch64-linux = "ld-linux-aarch64.so.1";
-  };
+  assets = builtins.fromJSON (builtins.readFile ./platforms.json);
   system = stdenv.hostPlatform.system;
   asset = assets.${system} or (throw "Unsupported OpenCode platform: ${system}");
 in
@@ -49,7 +41,7 @@ stdenv.mkDerivation {
     ${if stdenv.hostPlatform.isLinux then ''
       # Upstream's Linux assets are dynamically linked. Invoke glibc's loader
       # directly because patchelf breaks the embedded Bun payload.
-      makeBinaryWrapper ${stdenv.cc.libc}/lib/${loaders.${system}} "$out/bin/opencode" \
+      makeBinaryWrapper ${stdenv.cc.bintools.dynamicLinker} "$out/bin/opencode" \
         --add-flags "--library-path ${lib.makeLibraryPath [ stdenv.cc.cc.lib ]}" \
         --add-flags "$out/libexec/opencode" \
     '' else ''

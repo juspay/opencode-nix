@@ -19,19 +19,18 @@ if ! jq -en --arg before "$before" --arg after "$after" \
   echo "Keeping OpenCode $before (latest release: $after)."
   after=$before
 else
-  systems=(x86_64-linux aarch64-linux aarch64-darwin)
-  assets=(opencode-linux-x64.tar.gz opencode-linux-arm64.tar.gz opencode-darwin-arm64.zip)
+  assets=$(jq -r 'to_entries[] | [.key, .value] | @tsv' platforms.json)
   hashes='{}'
-  for i in "${!systems[@]}"; do
-    echo "Prefetching ${assets[$i]} for OpenCode $after..."
+  while IFS=$'\t' read -r system asset; do
+    echo "Prefetching $asset for OpenCode $after..."
     hash=$(nix store prefetch-file --json \
-      "https://github.com/anomalyco/opencode/releases/download/$tag/${assets[$i]}" \
+      "https://github.com/anomalyco/opencode/releases/download/$tag/$asset" \
       | jq -er '.hash | select(test("^sha256-[A-Za-z0-9+/]{43}=$"))')
-    hashes=$(jq --arg system "${systems[$i]}" --arg hash "$hash" \
+    hashes=$(jq --arg system "$system" --arg hash "$hash" \
       '. + {($system): $hash}' <<< "$hashes")
-  done
+  done <<< "$assets"
 
-  # Publish the new version only after all three downloads have succeeded.
+  # Publish the new version only after all downloads have succeeded.
   temporary=$(mktemp ./sources.json.XXXXXX)
   trap 'rm -f "$temporary"' EXIT
   jq -n --arg version "$after" --argjson hashes "$hashes" \
